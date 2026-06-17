@@ -6,9 +6,19 @@ RAG pipeline. Designed to run anywhere Python runs, including constrained
 environments like Cloudflare Python Workers (Pyodide) where pulling in
 `scikit-learn`/`numpy` is not an option.
 
-It is a spiritual cousin of [`minsearch`](https://github.com/alexeygrigorev/minsearch),
-with the same `Index(text_fields, keyword_fields).fit(docs).search(query)` shape,
-but reimplemented from scratch with no third-party dependencies.
+It is a spiritual cousin of [`minsearch`](https://github.com/alexeygrigorev/minsearch):
+same `Index` / `.fit()` / `.search()` API, but reimplemented from scratch with no
+third-party dependencies.
+
+## Drop-in replacement
+
+`zerosearch` mirrors the [`minsearch`](https://github.com/alexeygrigorev/minsearch)
+API — `Index(text_fields, keyword_fields)`, `index.fit(docs)`, and
+`index.search(query, filter_dict, boost_dict, num_results)` — so you can swap it in
+without changing your call sites. It is used exactly this way in
+[DataTalksClub/faq-assistant](https://github.com/DataTalksClub/faq-assistant), where
+it is vendored as the retrieval engine and produces **100% identical ranking** to the
+in-repo implementation it replaced.
 
 ## Install
 
@@ -29,16 +39,17 @@ docs = [
 index = Index(
     text_fields=["title", "text"],
     keyword_fields=["id", "course"],
-).fit(docs)
+)
+index.fit(docs)
 
 results = index.search(
     "how do I start docker compose",
-    filter_dict={"course": "de"},     # exact-match keyword filter
-    boost_dict={"title": 3.0, "text": 1.0},  # per-field boosts
+    filter_dict={"course": "de"},             # exact-match keyword filter
+    boost_dict={"title": 3.0, "text": 1.0},   # per-field boosts
     num_results=5,
 )
-for r in results:
-    print(r["score"], r["title"])
+for result in results:
+    print(result["score"], result["title"])
 ```
 
 Each result is a shallow copy of the original document dict with an added
@@ -59,11 +70,12 @@ Each result is a shallow copy of the original document dict with an added
 ## Customizing
 
 ```python
-Index(
+index = Index(
     text_fields=["title", "text"],
     stop_words={"the", "a", "an"},          # replace the default stop words
     tokenizer=lambda s: s.lower().split(),  # or plug in your own tokenizer
 )
+index.fit(docs)
 ```
 
 ## License

@@ -1,0 +1,71 @@
+# zerosearch
+
+A tiny, **zero-dependency** BM25-lite in-memory text search index — standard
+library only, a single small module, and good enough to power retrieval for a
+RAG pipeline. Designed to run anywhere Python runs, including constrained
+environments like Cloudflare Python Workers (Pyodide) where pulling in
+`scikit-learn`/`numpy` is not an option.
+
+It is a spiritual cousin of [`minsearch`](https://github.com/alexeygrigorev/minsearch),
+with the same `Index(text_fields, keyword_fields).fit(docs).search(query)` shape,
+but reimplemented from scratch with no third-party dependencies.
+
+## Install
+
+```bash
+pip install zerosearch
+```
+
+## Usage
+
+```python
+from zerosearch import Index
+
+docs = [
+    {"id": "1", "title": "Docker compose basics", "text": "how to start services", "course": "de"},
+    {"id": "2", "title": "Kafka consumers", "text": "consumer groups explained", "course": "de"},
+]
+
+index = Index(
+    text_fields=["title", "text"],
+    keyword_fields=["id", "course"],
+).fit(docs)
+
+results = index.search(
+    "how do I start docker compose",
+    filter_dict={"course": "de"},     # exact-match keyword filter
+    boost_dict={"title": 3.0, "text": 1.0},  # per-field boosts
+    num_results=5,
+)
+for r in results:
+    print(r["score"], r["title"])
+```
+
+Each result is a shallow copy of the original document dict with an added
+`"score"` key.
+
+## How it works
+
+* **Tokenizer** — lowercased word/number tokens; keeps `+ . # _ -` *inside* a
+  token so `c++`, `node.js`, `f-string` survive (a token must start with a
+  letter/digit). Drops 1-character tokens and a small English stop-word list
+  (both overridable).
+* **Inverted index** — built once in `fit()`. A query only scores documents that
+  actually contain a query term, so search is fast even on large corpora.
+* **Ranking** — BM25-lite: each query term contributes
+  `boost * idf * (term_frequency / sqrt(field_length))` per field. IDF and
+  document frequencies are computed over the filtered candidate set.
+
+## Customizing
+
+```python
+Index(
+    text_fields=["title", "text"],
+    stop_words={"the", "a", "an"},          # replace the default stop words
+    tokenizer=lambda s: s.lower().split(),  # or plug in your own tokenizer
+)
+```
+
+## License
+
+WTFPL.

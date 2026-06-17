@@ -1,0 +1,50 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "zerosearch"
+description = "A tiny, zero-dependency BM25-lite in-memory text search index."
+readme = "README.md"
+license = {text = "WTFPL"}
+requires-python = ">=3.10"
+dynamic = ["version"]
+keywords = ["search", "bm25", "tf-idf", "information-retrieval", "minsearch", "zero-dependency"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Text Processing :: Indexing",
+    "Intended Audience :: Developers",
+]
+
+dependencies = [
+    # Intentionally empty: standard library only.
+]
+
+authors = [
+    {name = "Alexey Grigorev", email = "alexey.s.grigoriev@gmail.com"}
+]
+
+[project.urls]
+Homepage = "https://github.com/alexeygrigorev/zerosearch"
+Repository = "https://github.com/alexeygrigorev/zerosearch"
+
+[dependency-groups]
+dev = [
+    "hatch",
+    "pytest",
+    "pytest-cov",
+    "ruff",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["zerosearch"]
+
+[tool.hatch.version]
+path = "zerosearch/__version__.py"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"

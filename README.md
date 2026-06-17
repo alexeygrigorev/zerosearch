@@ -19,11 +19,12 @@ without changing your call sites. It is used exactly this way in
 [DataTalksClub/faq-assistant](https://github.com/DataTalksClub/faq-assistant), where it
 is vendored as the retrieval engine.
 
-Note on ranking: `zerosearch` uses BM25-lite scoring, not `minsearch`'s TF-IDF +
-cosine similarity, so it is **not** bit-for-bit identical to `minsearch`. On the
-faq-assistant benchmark it matches `minsearch` on retrieval quality (tied `recall@6`),
-while its rankings differ in ordering. It *is* 100% identical to the BM25-lite engine
-that previously lived inside faq-assistant, which it replaced.
+Note on ranking vs `minsearch`: `zerosearch` uses BM25-lite scoring, not `minsearch`'s
+TF-IDF + cosine similarity — different algorithms, so the rankings are **not**
+bit-for-bit identical. **Retrieval quality is on par, though:** on the faq-assistant
+benchmark `zerosearch` matches `minsearch`'s **recall** (it surfaces the same relevant
+documents in the top results), it just orders them differently. It *is* 100% identical
+to the in-repo BM25-lite engine it replaced.
 
 ## Install
 

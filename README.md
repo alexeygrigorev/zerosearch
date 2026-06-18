@@ -50,7 +50,7 @@ index.fit(docs)
 
 results = index.search(
     "how do I start docker compose",
-    filter_dict={"course": "de"},             # exact-match keyword filter
+    filter_dict={"course": "de"},             # keyword filter (scalar = exact, list = IN)
     boost_dict={"title": 3.0, "text": 1.0},   # per-field boosts
     num_results=5,
 )
@@ -60,6 +60,18 @@ for result in results:
 
 Each result is a shallow copy of the original document dict with an added
 `"score"` key.
+
+### Filtering
+
+A `filter_dict` value can be a scalar (exact match) or a list/tuple/set
+(match any of the values — IN / OR within that field). Filters on different
+fields are combined with AND.
+
+```python
+index.search("docker", filter_dict={"course": "de"})            # course == "de"
+index.search("docker", filter_dict={"course": ["de", ""]})      # course == "de" OR course == ""
+index.search("docker", filter_dict={"course": ["de", "mlops"], "kind": "faq"})  # (de OR mlops) AND faq
+```
 
 ## Saving & loading a prebuilt index
 

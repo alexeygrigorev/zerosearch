@@ -90,6 +90,53 @@ def test_keyword_filters_are_intersected():
     assert [result["id"] for result in results] == ["2"]
 
 
+def test_list_filter_value_matches_any():
+    # A list value means IN / OR within the field.
+    docs = [
+        {"id": "1", "title": "docker", "course": "de"},
+        {"id": "2", "title": "docker", "course": "mlops"},
+        {"id": "3", "title": "docker", "course": "ml"},
+        {"id": "4", "title": "docker", "course": ""},
+    ]
+    index = Index(text_fields=["title"], keyword_fields=["course"]).fit(docs)
+
+    results = index.search("docker", filter_dict={"course": ["de", ""]}, num_results=5)
+    assert sorted(r["id"] for r in results) == ["1", "4"]
+
+
+def test_list_filter_value_is_union_not_intersection():
+    docs = [
+        {"id": "1", "title": "docker", "course": "de"},
+        {"id": "2", "title": "docker", "course": "mlops"},
+    ]
+    index = Index(text_fields=["title"], keyword_fields=["course"]).fit(docs)
+
+    results = index.search("docker", filter_dict={"course": ["de", "mlops"]}, num_results=5)
+    assert sorted(r["id"] for r in results) == ["1", "2"]
+
+
+def test_list_filter_combines_with_other_fields_via_and():
+    docs = [
+        {"id": "1", "title": "docker", "course": "de", "kind": "faq"},
+        {"id": "2", "title": "docker", "course": "mlops", "kind": "faq"},
+        {"id": "3", "title": "docker", "course": "de", "kind": "lesson"},
+    ]
+    index = Index(text_fields=["title"], keyword_fields=["course", "kind"]).fit(docs)
+
+    results = index.search("docker", filter_dict={"course": ["de", "mlops"], "kind": "faq"})
+    assert sorted(r["id"] for r in results) == ["1", "2"]
+
+
+def test_empty_list_filter_matches_nothing():
+    assert make_index().search("docker", filter_dict={"course": []}) == []
+
+
+def test_single_element_list_filter_equals_scalar():
+    scalar = make_index().search("docker", filter_dict={"course": "mlops"})
+    listed = make_index().search("docker", filter_dict={"course": ["mlops"]})
+    assert [r["id"] for r in scalar] == [r["id"] for r in listed] == ["3"]
+
+
 def test_unknown_keyword_filter_field_returns_empty():
     assert make_index().search("docker", filter_dict={"missing": "value"}) == []
 

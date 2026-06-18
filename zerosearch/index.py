@@ -188,11 +188,15 @@ class Index:
     def search(
         self,
         query: str,
-        filter_dict: dict[str, str] | None = None,
+        filter_dict: dict[str, Any] | None = None,
         boost_dict: dict[str, float] | None = None,
         num_results: int = 10,
     ) -> list[dict[str, Any]]:
-        """Return up to ``num_results`` docs (copies, with a ``"score"`` key)."""
+        """Return up to ``num_results`` docs (copies, with a ``"score"`` key).
+
+        A ``filter_dict`` value may be a scalar (exact match) or a list/tuple/set
+        (match any of the values, i.e. IN). Different fields combine with AND.
+        """
         query_terms = self._tokenize(query)
         if not query_terms:
             return []
@@ -290,13 +294,24 @@ class Index:
             return index
         return -1
 
-    def _candidate_ids(self, filter_dict: dict[str, str]) -> set[int] | None:
-        """Intersect keyword indexes for each filter. ``None`` means "all docs"."""
+    def _candidate_ids(self, filter_dict: dict[str, Any]) -> set[int] | None:
+        """Intersect keyword indexes for each filter. ``None`` means "all docs".
+
+        A **scalar** filter value matches that value exactly. A **list/tuple/set**
+        value matches *any* of the listed values (IN / OR within the field).
+        Filters on different fields are combined with AND.
+        """
         if not filter_dict:
             return None
         candidates: set[int] | None = None
         for field, value in filter_dict.items():
-            matched = self._keyword_index.get(field, {}).get(str(value), set())
+            field_index = self._keyword_index.get(field, {})
+            if isinstance(value, (list, tuple, set)):
+                matched: set[int] = set()
+                for item in value:
+                    matched |= field_index.get(str(item), set())
+            else:
+                matched = field_index.get(str(value), set())
             candidates = set(matched) if candidates is None else (candidates & matched)
             if not candidates:
                 return set()

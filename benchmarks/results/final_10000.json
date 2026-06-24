@@ -1,0 +1,16 @@
+{
+  "timestamp_utc": "2026-06-24T21:04:18.462182+00:00",
+  "engine": "zerosearch",
+  "docs": 10000,
+  "queries": 100,
+  "total_text_chars": 65849295,
+  "build_seconds": 29.762227008119226,
+  "build_peak_bytes_tracemalloc": 418487606,
+  "search_avg_ms": 0.31159533187747,
+  "search_median_ms": 0.09442213922739029,
+  "search_p95_ms": 1.3193394988775253,
+  "search_min_ms": 0.008240342140197754,
+  "search_max_ms": 2.1016374230384827,
+  "qps": 3209.29069756807,
+  "avg_hits": 9.23
+}

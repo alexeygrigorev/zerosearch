@@ -18,8 +18,8 @@ import math
 import re
 import sys
 from array import array
-from bisect import bisect_left
 from collections import Counter
+from heapq import nsmallest
 from typing import Any, Callable, Iterable
 
 __all__ = ["Index", "tokenize", "DEFAULT_STOP_WORDS", "TOKEN_RE"]
@@ -38,7 +38,7 @@ Tokenizer = Callable[[str], list]
 # On-disk format. ``_FORMAT_VERSION`` is bumped whenever the packed layout
 # changes so an incompatible artifact fails loudly instead of scoring wrong.
 _MAGIC = "zerosearch"
-_FORMAT_VERSION = 1
+_FORMAT_VERSION = 2
 
 # Array typecodes for the packed postings. Doc ids and term frequencies use an
 # unsigned 32-bit int; the field index uses a single byte (so at most 256 text
@@ -114,10 +114,12 @@ class Index:
         # Packed runtime state (populated by ``fit`` or ``load``).
         self._n_fields = len(self.text_fields)
         self._vocab: list[str] = []  # sorted; a term's id is its position here
+        self._term_to_id: dict[str, int] = {}
         self._post_off = array(_OFFSET_TC, [0])  # term id -> [start, end) into the postings
         self._post_doc = array(_DOC_TC)
         self._post_field = array(_FIELD_TC)
         self._post_tf = array(_TF_TC)
+        self._doc_freq = array(_DOC_TC)
         self._lengths = array(_LENGTH_TC)  # flat doc_id * n_fields + field_index -> field length
         self._keyword_index: dict[str, dict[str, set[int]]] = {}
 
@@ -142,7 +144,8 @@ class Index:
             base = doc_id * n_fields
             for field_index, field in enumerate(self.text_fields):
                 counts = Counter(self._tokenize(str(doc.get(field, ""))))
-                lengths[base + field_index] = sum(counts.values())
+                field_length = sum(counts.values())
+                lengths[base + field_index] = field_length
                 for term, term_frequency in counts.items():
                     postings.setdefault(term, []).append((doc_id, field_index, term_frequency))
             for field in self.keyword_fields:
@@ -163,23 +166,32 @@ class Index:
         post_doc = array(_DOC_TC)
         post_field = array(_FIELD_TC)
         post_tf = array(_TF_TC)
+        doc_freq = array(_DOC_TC)
 
         offset = 0
         for term in vocab:
             post_off.append(offset)
             # Sorted by doc so tied scores fall back to document order downstream.
+            last_doc_id = -1
+            term_document_frequency = 0
             for doc_id, field_index, term_frequency in sorted(postings[term]):
+                if doc_id != last_doc_id:
+                    term_document_frequency += 1
+                    last_doc_id = doc_id
                 post_doc.append(doc_id)
                 post_field.append(field_index)
                 post_tf.append(term_frequency)
                 offset += 1
+            doc_freq.append(term_document_frequency)
         post_off.append(offset)
 
         self._vocab = vocab
+        self._term_to_id = {term: term_id for term_id, term in enumerate(vocab)}
         self._post_off = post_off
         self._post_doc = post_doc
         self._post_field = post_field
         self._post_tf = post_tf
+        self._doc_freq = doc_freq
         self._lengths = lengths
         self._keyword_index = keyword_index
 
@@ -197,11 +209,13 @@ class Index:
         A ``filter_dict`` value may be a scalar (exact match) or a list/tuple/set
         (match any of the values, i.e. IN). Different fields combine with AND.
         """
-        query_terms = self._tokenize(query)
-        if not query_terms:
+        if num_results <= 0:
             return []
 
-        query_term_frequencies = Counter(query_terms)
+        query_term_frequencies = Counter(self._tokenize(query))
+        if not query_term_frequencies:
+            return []
+
         filter_dict = filter_dict or {}
         boost_dict = boost_dict or {}
 
@@ -212,51 +226,65 @@ class Index:
         document_count = len(self.docs) if candidates is None else len(candidates)
 
         # Locate each distinct query term's posting slice in the sorted vocab.
-        located: list[tuple[str, int, int]] = []
+        located: list[tuple[int, str, int, int]] = []
         for term in query_term_frequencies:
             term_id = self._term_id(term)
             if term_id < 0:
                 continue
             start, end = self._post_off[term_id], self._post_off[term_id + 1]
             if end > start:
-                located.append((term, start, end))
+                located.append((term_id, term, start, end))
         if not located:
             return []
 
         # Document frequency = distinct candidate docs containing the term.
-        document_frequencies: dict[str, int] = {}
-        for term, start, end in located:
-            docs_seen: set[int] = set()
-            for j in range(start, end):
-                doc_id = self._post_doc[j]
-                if candidates is None or doc_id in candidates:
-                    docs_seen.add(doc_id)
-            if docs_seen:
-                document_frequencies[term] = len(docs_seen)
+        document_frequencies: dict[int, int] = {}
+        if candidates is None:
+            for term_id, _, _, _ in located:
+                df = self._doc_freq[term_id]
+                if df:
+                    document_frequencies[term_id] = df
+        else:
+            post_doc = self._post_doc
+            for term_id, _, start, end in located:
+                df = 0
+                last_counted_doc = -1
+                for j in range(start, end):
+                    doc_id = post_doc[j]
+                    if doc_id != last_counted_doc and doc_id in candidates:
+                        df += 1
+                        last_counted_doc = doc_id
+                if df:
+                    document_frequencies[term_id] = df
         if not document_frequencies:
             return []
 
         idf = {
-            term: math.log(1 + (document_count - df + 0.5) / (df + 0.5))
-            for term, df in document_frequencies.items()
+            term_id: math.log(1 + (document_count - df + 0.5) / (df + 0.5))
+            for term_id, df in document_frequencies.items()
         }
 
         scores = self._accumulate_scores(located, idf, query_term_frequencies, candidates, boost_dict)
+        if not scores:
+            return []
 
-        scored: list[dict[str, Any]] = []
-        for doc_id in sorted(scores):
-            if scores[doc_id] > 0:
-                record = dict(self.docs[doc_id])
-                record["score"] = scores[doc_id]
-                scored.append(record)
+        rank_key = lambda doc_id: (-scores[doc_id], doc_id)
+        if num_results >= len(scores):
+            top_ids = sorted(scores, key=rank_key)
+        else:
+            top_ids = nsmallest(num_results, scores, key=rank_key)
 
-        scored.sort(key=lambda record: float(record["score"]), reverse=True)
-        return scored[:num_results]
+        results: list[dict[str, Any]] = []
+        for doc_id in top_ids:
+            record = dict(self.docs[doc_id])
+            record["score"] = scores[doc_id]
+            results.append(record)
+        return results
 
     def _accumulate_scores(
         self,
-        located: list[tuple[str, int, int]],
-        idf: dict[str, float],
+        located: list[tuple[int, str, int, int]],
+        idf: dict[int, float],
         query_term_frequencies: dict[str, int],
         candidates: set[int] | None,
         boost_dict: dict[str, float],
@@ -269,10 +297,10 @@ class Index:
         post_tf = self._post_tf
         lengths = self._lengths
 
-        for term, start, end in located:
-            if term not in idf:
+        for term_id, term, start, end in located:
+            if term_id not in idf:
                 continue
-            weight = idf[term] * query_term_frequencies[term]
+            weight = idf[term_id] * query_term_frequencies[term]
             for j in range(start, end):
                 doc_id = post_doc[j]
                 if candidates is not None and doc_id not in candidates:
@@ -287,12 +315,8 @@ class Index:
         return scores
 
     def _term_id(self, term: str) -> int:
-        """Binary-search the sorted vocabulary; ``-1`` if the term is unknown."""
-        vocab = self._vocab
-        index = bisect_left(vocab, term)
-        if index < len(vocab) and vocab[index] == term:
-            return index
-        return -1
+        """Return a term id, or ``-1`` if the term is unknown."""
+        return self._term_to_id.get(term, -1)
 
     def _candidate_ids(self, filter_dict: dict[str, Any]) -> set[int] | None:
         """Intersect keyword indexes for each filter. ``None`` means "all docs".
@@ -340,6 +364,7 @@ class Index:
             "post_doc": self._post_doc.tobytes(),
             "post_field": self._post_field.tobytes(),
             "post_tf": self._post_tf.tobytes(),
+            "doc_freq": self._doc_freq.tobytes(),
             "lengths": self._lengths.tobytes(),
             "keyword_index": {
                 field: {value: array(_DOC_TC, sorted(ids)).tobytes() for value, ids in values.items()}
@@ -389,11 +414,13 @@ class Index:
         index.docs = state["docs"]
         index._n_fields = state["n_fields"]
         index._vocab = state["vocab"]
+        index._term_to_id = {term: term_id for term_id, term in enumerate(index._vocab)}
         index._post_off = _array_from_bytes(_OFFSET_TC, state["post_off"])
         index._post_doc = _array_from_bytes(_DOC_TC, state["post_doc"])
         index._post_field = _array_from_bytes(_FIELD_TC, state["post_field"])
         index._post_tf = _array_from_bytes(_TF_TC, state["post_tf"])
         index._lengths = _array_from_bytes(_LENGTH_TC, state["lengths"])
+        index._doc_freq = _array_from_bytes(_DOC_TC, state["doc_freq"])
         index._keyword_index = {
             field: {value: set(_array_from_bytes(_DOC_TC, blob)) for value, blob in values.items()}
             for field, values in state["keyword_index"].items()
@@ -409,7 +436,8 @@ class Index:
 
 def _itemsizes() -> list[int]:
     """Platform array itemsizes, recorded so a cross-platform load fails loudly."""
-    return [array(typecode).itemsize for typecode in (_OFFSET_TC, _DOC_TC, _TF_TC, _FIELD_TC, _LENGTH_TC)]
+    typecodes = (_OFFSET_TC, _DOC_TC, _TF_TC, _FIELD_TC, _LENGTH_TC)
+    return [array(typecode).itemsize for typecode in typecodes]
 
 
 def _python_tag() -> str:

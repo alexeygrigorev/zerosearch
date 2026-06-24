@@ -1,0 +1,195 @@
+{
+  "timestamp_utc": "2026-06-24T21:04:27.307476+00:00",
+  "before": "git HEAD:zerosearch/index.py",
+  "after": "working tree zerosearch.Index",
+  "simplewiki": {
+    "docs": 10000,
+    "queries": 100,
+    "mismatches": [],
+    "matched": true
+  },
+  "faq": {
+    "docs": 3319,
+    "variants": {
+      "current": {
+        "before": {
+          "hit@1": 0.2923,
+          "mrr@1": 0.2923,
+          "hit@3": 0.4462,
+          "mrr@3": 0.3615,
+          "hit@5": 0.5385,
+          "mrr@5": 0.3831,
+          "n": 130
+        },
+        "after": {
+          "hit@1": 0.2923,
+          "mrr@1": 0.2923,
+          "hit@3": 0.4462,
+          "mrr@3": 0.3615,
+          "hit@5": 0.5385,
+          "mrr@5": 0.3831,
+          "n": 130
+        },
+        "mismatches": [],
+        "matched": true
+      },
+      "expansion": {
+        "before": {
+          "hit@1": 0.2154,
+          "mrr@1": 0.2154,
+          "hit@3": 0.3154,
+          "mrr@3": 0.2603,
+          "hit@5": 0.4231,
+          "mrr@5": 0.2837,
+          "n": 130
+        },
+        "after": {
+          "hit@1": 0.2154,
+          "mrr@1": 0.2154,
+          "hit@3": 0.3154,
+          "mrr@3": 0.2603,
+          "hit@5": 0.4231,
+          "mrr@5": 0.2837,
+          "n": 130
+        },
+        "mismatches": [],
+        "matched": true
+      },
+      "keywords": {
+        "before": {
+          "hit@1": 0.2308,
+          "mrr@1": 0.2308,
+          "hit@3": 0.4,
+          "mrr@3": 0.3064,
+          "hit@5": 0.5,
+          "mrr@5": 0.3283,
+          "n": 130
+        },
+        "after": {
+          "hit@1": 0.2308,
+          "mrr@1": 0.2308,
+          "hit@3": 0.4,
+          "mrr@3": 0.3064,
+          "hit@5": 0.5,
+          "mrr@5": 0.3283,
+          "n": 130
+        },
+        "mismatches": [],
+        "matched": true
+      },
+      "light": {
+        "before": {
+          "hit@1": 0.2769,
+          "mrr@1": 0.2769,
+          "hit@3": 0.4077,
+          "mrr@3": 0.3308,
+          "hit@5": 0.4923,
+          "mrr@5": 0.3504,
+          "n": 130
+        },
+        "after": {
+          "hit@1": 0.2769,
+          "mrr@1": 0.2769,
+          "hit@3": 0.4077,
+          "mrr@3": 0.3308,
+          "hit@5": 0.4923,
+          "mrr@5": 0.3504,
+          "n": 130
+        },
+        "mismatches": [],
+        "matched": true
+      },
+      "minimal": {
+        "before": {
+          "hit@1": 0.2,
+          "mrr@1": 0.2,
+          "hit@3": 0.2923,
+          "mrr@3": 0.2372,
+          "hit@5": 0.3769,
+          "mrr@5": 0.2568,
+          "n": 130
+        },
+        "after": {
+          "hit@1": 0.2,
+          "mrr@1": 0.2,
+          "hit@3": 0.2923,
+          "mrr@3": 0.2372,
+          "hit@5": 0.3769,
+          "mrr@5": 0.2568,
+          "n": 130
+        },
+        "mismatches": [],
+        "matched": true
+      },
+      "production": {
+        "before": {
+          "hit@1": 0.2923,
+          "mrr@1": 0.2923,
+          "hit@3": 0.4846,
+          "mrr@3": 0.3821,
+          "hit@5": 0.5692,
+          "mrr@5": 0.4017,
+          "n": 130
+        },
+        "after": {
+          "hit@1": 0.2923,
+          "mrr@1": 0.2923,
+          "hit@3": 0.4846,
+          "mrr@3": 0.3821,
+          "hit@5": 0.5692,
+          "mrr@5": 0.4017,
+          "n": 130
+        },
+        "mismatches": [],
+        "matched": true
+      },
+      "raw": {
+        "before": {
+          "hit@1": 0.2308,
+          "mrr@1": 0.2308,
+          "hit@3": 0.4692,
+          "mrr@3": 0.3333,
+          "hit@5": 0.5385,
+          "mrr@5": 0.3483,
+          "n": 130
+        },
+        "after": {
+          "hit@1": 0.2308,
+          "mrr@1": 0.2308,
+          "hit@3": 0.4692,
+          "mrr@3": 0.3333,
+          "hit@5": 0.5385,
+          "mrr@5": 0.3483,
+          "n": 130
+        },
+        "mismatches": [],
+        "matched": true
+      },
+      "verbatim": {
+        "before": {
+          "hit@1": 0.2769,
+          "mrr@1": 0.2769,
+          "hit@3": 0.4615,
+          "mrr@3": 0.3654,
+          "hit@5": 0.5462,
+          "mrr@5": 0.3854,
+          "n": 130
+        },
+        "after": {
+          "hit@1": 0.2769,
+          "mrr@1": 0.2769,
+          "hit@3": 0.4615,
+          "mrr@3": 0.3654,
+          "hit@5": 0.5462,
+          "mrr@5": 0.3854,
+          "n": 130
+        },
+        "mismatches": [],
+        "matched": true
+      }
+    },
+    "matched": true,
+    "mismatch_count": 0,
+    "mismatches": []
+  }
+}

@@ -34,24 +34,49 @@ Results on this machine:
 
 | sample | version | build | peak memory | avg search | median | p95 | qps |
 |---:|---|---:|---:|---:|---:|---:|---:|
-| 10,000 docs | before | 35.798 s | 338.4 MB | 0.954 ms | 0.162 ms | 2.660 ms | 1,047.9 |
-| 10,000 docs | after | 29.762 s | 399.1 MB | 0.312 ms | 0.094 ms | 1.319 ms | 3,209.3 |
-| 10,000 docs / 100k queries | before | 27.998 s | 364.9 MB | 0.665 ms | 0.134 ms | 2.993 ms | 1,504.0 |
-| 10,000 docs / 100k queries | after | 29.868 s | 399.1 MB | 0.321 ms | 0.087 ms | 1.474 ms | 3,113.6 |
-| 1,000 docs | before | 5.295 s | 51.2 MB | 0.116 ms | 0.055 ms | 0.442 ms | 8,606.8 |
-| 1,000 docs | after | 3.980 s | 63.1 MB | 0.063 ms | 0.038 ms | 0.212 ms | 15,970.8 |
+| 10,000 docs | before | 29.433 s | 364.9 MB | 0.708 ms | 0.173 ms | 3.185 ms | 1,413.4 |
+| 10,000 docs | after | 44.549 s | 399.1 MB | 0.378 ms | 0.120 ms | 1.398 ms | 2,644.2 |
+| 10,000 docs / 100k queries | before | 34.712 s | 364.9 MB | 0.694 ms | 0.139 ms | 3.124 ms | 1,441.1 |
+| 10,000 docs / 100k queries | after | 27.682 s | 399.1 MB | 0.325 ms | 0.089 ms | 1.483 ms | 3,073.0 |
+| 1,000 docs | before | 3.666 s | 54.6 MB | 0.090 ms | 0.045 ms | 0.336 ms | 11,124.0 |
+| 1,000 docs | after | 4.379 s | 63.1 MB | 0.059 ms | 0.035 ms | 0.196 ms | 16,924.2 |
 
-On the 10,000-document sample, average search latency improved by 3.1x and p95
-latency improved by 2.0x. On the longer 100,000-query run, average latency
-improved by 2.1x and p95 latency improved by 2.0x. The final implementation is
+On the 10,000-document sample, average search latency improved by 1.9x and p95
+latency improved by 2.3x. On the longer 100,000-query run, average latency
+improved by 2.1x and p95 latency improved by 2.1x. The final implementation is
 slower than the earlier normalized-weight experiment, but it preserves the
 pre-optimization ranking and score behavior exactly.
 
 The 100,000-query run was added after the first report to reduce timing noise
 from very small query samples. It uses the same 10,000 cached documents and the
 same title-derived query distribution, but samples with replacement. The longer
-run confirms the 100-query result: average search latency stays around `0.32 ms`
+run confirms the 100-query result: average search latency stays around `0.33 ms`
 and throughput is about `3.1k QPS` on this machine.
+
+## Memory Footprint
+
+The result JSON files include four memory/footprint measures:
+
+- `build_peak_bytes_tracemalloc`: peak Python allocations during `fit`.
+- `build_current_bytes_tracemalloc`: Python allocations still live immediately
+  after `fit`. This excludes the already-loaded input corpus, because
+  `tracemalloc` starts right before fitting the index.
+- `index_serialized_bytes`: size of `index.dumps()`, a practical shipped artifact
+  size including documents, vocabulary, arrays, and keyword indexes.
+- `index_packed_array_bytes`: bytes used by the packed posting/length arrays only.
+
+| sample | version | live after build | build peak | serialized | packed arrays |
+|---:|---|---:|---:|---:|---:|
+| 10,000 docs | before | 55.6 MB | 364.9 MB | 99.9 MB | 31.3 MB |
+| 10,000 docs | after | 83.8 MB | 399.1 MB | 101.4 MB | 32.8 MB |
+| 1,000 docs | before | 9.9 MB | 54.6 MB | 14.4 MB | 4.2 MB |
+| 1,000 docs | after | 16.8 MB | 63.1 MB | 14.7 MB | 4.6 MB |
+
+The persistent packed artifact cost is modest: about `+1.5 MB` serialized and
+`+1.5 MB` packed-array bytes on the 10,000-document sample, mostly from the new
+per-term document-frequency array and term-to-id map. Build/live Python memory
+is higher because the optimized index keeps extra lookup structures for faster
+query execution.
 
 Raw result files:
 

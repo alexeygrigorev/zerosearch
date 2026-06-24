@@ -199,6 +199,28 @@ def percentile(values: list[float], pct: float) -> float:
     return ordered[index]
 
 
+def index_footprint(index) -> dict[str, int]:
+    arrays = [
+        "_post_off",
+        "_post_doc",
+        "_post_field",
+        "_post_tf",
+        "_doc_freq",
+        "_lengths",
+    ]
+    packed_array_bytes = sum(
+        getattr(index, name).buffer_info()[1] * getattr(index, name).itemsize
+        for name in arrays
+        if hasattr(index, name)
+    )
+    return {
+        "index_serialized_bytes": len(index.dumps()),
+        "index_packed_array_bytes": packed_array_bytes,
+        "vocab_terms": len(index._vocab),
+        "postings": len(index._post_doc),
+    }
+
+
 def benchmark(docs: list[dict[str, Any]], queries: list[str]) -> dict[str, Any]:
     total_chars = sum(len(str(doc.get("text", ""))) for doc in docs)
 
@@ -206,7 +228,7 @@ def benchmark(docs: list[dict[str, Any]], queries: list[str]) -> dict[str, Any]:
     build_start = time.perf_counter()
     index = INDEX_CLASS(text_fields=["text"]).fit(docs)
     build_seconds = time.perf_counter() - build_start
-    _, peak_bytes = tracemalloc.get_traced_memory()
+    current_bytes, peak_bytes = tracemalloc.get_traced_memory()
     tracemalloc.stop()
 
     if queries:
@@ -228,7 +250,9 @@ def benchmark(docs: list[dict[str, Any]], queries: list[str]) -> dict[str, Any]:
         "queries": len(queries),
         "total_text_chars": total_chars,
         "build_seconds": build_seconds,
+        "build_current_bytes_tracemalloc": current_bytes,
         "build_peak_bytes_tracemalloc": peak_bytes,
+        **index_footprint(index),
         "search_avg_ms": avg * 1000,
         "search_median_ms": (statistics.median(timings) * 1000) if timings else 0.0,
         "search_p95_ms": percentile(timings, 95) * 1000,
@@ -245,7 +269,10 @@ def print_summary(results: dict[str, Any]) -> None:
     print(f"queries:           {results['queries']:,}")
     print(f"text chars:        {results['total_text_chars']:,}")
     print(f"build:             {results['build_seconds']:.3f} s")
+    print(f"index current mem: {results['build_current_bytes_tracemalloc'] / 1024 / 1024:.1f} MB")
     print(f"build peak memory: {results['build_peak_bytes_tracemalloc'] / 1024 / 1024:.1f} MB")
+    print(f"serialized index:  {results['index_serialized_bytes'] / 1024 / 1024:.1f} MB")
+    print(f"packed arrays:     {results['index_packed_array_bytes'] / 1024 / 1024:.1f} MB")
     print(f"search avg:        {results['search_avg_ms']:.3f} ms")
     print(f"search median:     {results['search_median_ms']:.3f} ms")
     print(f"search p95:        {results['search_p95_ms']:.3f} ms")

@@ -224,12 +224,19 @@ def index_footprint(index) -> dict[str, int]:
 def benchmark(docs: list[dict[str, Any]], queries: list[str]) -> dict[str, Any]:
     total_chars = sum(len(str(doc.get("text", ""))) for doc in docs)
 
-    tracemalloc.start()
+    # Time the build WITHOUT tracemalloc. Allocation tracing slows fit ~4x
+    # (it traces every allocation), so timing under tracemalloc does not
+    # reflect real build time. Memory is measured separately below.
     build_start = time.perf_counter()
     index = INDEX_CLASS(text_fields=["text"]).fit(docs)
     build_seconds = time.perf_counter() - build_start
+
+    # Measure build memory under tracemalloc in a separate, untimed fit.
+    tracemalloc.start()
+    mem_index = INDEX_CLASS(text_fields=["text"]).fit(docs)
     current_bytes, peak_bytes = tracemalloc.get_traced_memory()
     tracemalloc.stop()
+    del mem_index
 
     if queries:
         index.search(queries[0], num_results=10)

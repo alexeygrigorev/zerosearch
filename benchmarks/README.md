@@ -30,22 +30,30 @@ uv run python benchmarks/simplewiki_benchmark.py \
   --label final_10000
 ```
 
+> **Build timing note.** `fit` is timed **without** `tracemalloc` running.
+> `tracemalloc` traces every allocation and slows `fit` ~4x (e.g. 8.5 s → 34 s
+> on the 10,000-doc sample), so build memory is measured in a separate, untimed
+> `fit`. Earlier versions of this table timed `fit` under `tracemalloc` and so
+> reported build times ~4x too high; the numbers below are the corrected,
+> tracemalloc-free build times.
+
 Results on this machine:
 
 | sample | version | build | peak memory | avg search | median | p95 | qps |
 |---:|---|---:|---:|---:|---:|---:|---:|
-| 10,000 docs | before | 29.433 s | 364.9 MB | 0.708 ms | 0.173 ms | 3.185 ms | 1,413.4 |
-| 10,000 docs | after | 44.549 s | 399.1 MB | 0.378 ms | 0.120 ms | 1.398 ms | 2,644.2 |
-| 10,000 docs / 100k queries | before | 34.712 s | 364.9 MB | 0.694 ms | 0.139 ms | 3.124 ms | 1,441.1 |
-| 10,000 docs / 100k queries | after | 27.682 s | 399.1 MB | 0.325 ms | 0.089 ms | 1.483 ms | 3,073.0 |
-| 1,000 docs | before | 3.666 s | 54.6 MB | 0.090 ms | 0.045 ms | 0.336 ms | 11,124.0 |
-| 1,000 docs | after | 4.379 s | 63.1 MB | 0.059 ms | 0.035 ms | 0.196 ms | 16,924.2 |
+| 10,000 docs | before | 8.277 s | 338.3 MB | 0.875 ms | 0.144 ms | 2.693 ms | 1,142.5 |
+| 10,000 docs | after | 8.531 s | 371.2 MB | 0.345 ms | 0.116 ms | 1.467 ms | 2,896.9 |
+| 10,000 docs / 100k queries | before | 8.340 s | 338.3 MB | 0.628 ms | 0.134 ms | 3.066 ms | 1,592.9 |
+| 10,000 docs / 100k queries | after | 8.793 s | 371.2 MB | 0.337 ms | 0.090 ms | 1.578 ms | 2,963.9 |
+| 1,000 docs | before | 1.095 s | 51.1 MB | 0.087 ms | 0.040 ms | 0.337 ms | 11,478.0 |
+| 1,000 docs | after | 1.106 s | 59.3 MB | 0.063 ms | 0.037 ms | 0.224 ms | 15,791.4 |
 
-On the 10,000-document sample, average search latency improved by 1.9x and p95
-latency improved by 2.3x. On the longer 100,000-query run, average latency
-improved by 2.1x and p95 latency improved by 2.1x. The final implementation is
-slower than the earlier normalized-weight experiment, but it preserves the
-pre-optimization ranking and score behavior exactly.
+The optimization is a **search-path** change, so build time is essentially
+unchanged before vs after (the small differences are run-to-run noise). On the
+10,000-document sample, average search latency improved by 2.5x and p95 latency
+by 1.8x. On the longer 100,000-query run, average latency improved by 1.9x and
+p95 by 1.9x. The implementation preserves the pre-optimization ranking and score
+behavior exactly.
 
 The 100,000-query run was added after the first report to reduce timing noise
 from very small query samples. It uses the same 10,000 cached documents and the
@@ -60,17 +68,18 @@ The result JSON files include four memory/footprint measures:
 - `build_peak_bytes_tracemalloc`: peak Python allocations during `fit`.
 - `build_current_bytes_tracemalloc`: Python allocations still live immediately
   after `fit`. This excludes the already-loaded input corpus, because
-  `tracemalloc` starts right before fitting the index.
+  `tracemalloc` starts right before the (separate, untimed) memory-measurement
+  `fit`.
 - `index_serialized_bytes`: size of `index.dumps()`, a practical shipped artifact
   size including documents, vocabulary, arrays, and keyword indexes.
 - `index_packed_array_bytes`: bytes used by the packed posting/length arrays only.
 
 | sample | version | live after build | build peak | serialized | packed arrays |
 |---:|---|---:|---:|---:|---:|
-| 10,000 docs | before | 55.6 MB | 364.9 MB | 99.9 MB | 31.3 MB |
-| 10,000 docs | after | 83.8 MB | 399.1 MB | 101.4 MB | 32.8 MB |
-| 1,000 docs | before | 9.9 MB | 54.6 MB | 14.4 MB | 4.2 MB |
-| 1,000 docs | after | 16.8 MB | 63.1 MB | 14.7 MB | 4.6 MB |
+| 10,000 docs | before | 55.6 MB | 338.3 MB | 99.9 MB | 31.3 MB |
+| 10,000 docs | after | 82.3 MB | 371.2 MB | 101.4 MB | 32.8 MB |
+| 1,000 docs | before | 9.8 MB | 51.1 MB | 14.4 MB | 4.2 MB |
+| 1,000 docs | after | 16.4 MB | 59.3 MB | 14.7 MB | 4.6 MB |
 
 The persistent packed artifact cost is modest: about `+1.5 MB` serialized and
 `+1.5 MB` packed-array bytes on the 10,000-document sample, mostly from the new
@@ -141,3 +150,8 @@ The benchmark runner was also changed to support long query-throughput runs:
 The comparison runner also deduplicates repeated query strings before executing
 searches. This makes the 100k correctness check fast without changing what it
 proves: a repeated query can only produce the same mismatch each time.
+
+The runner now times `fit` outside `tracemalloc` and measures build memory in a
+separate `fit`, because tracing every allocation slowed the timed build ~4x and
+made build times look far worse than they are. Search timing was always measured
+outside `tracemalloc`, so only the build column changed.
